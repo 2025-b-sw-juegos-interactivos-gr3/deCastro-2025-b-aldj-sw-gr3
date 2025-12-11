@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ambulance Game - Babylon.js</title>
+    <style>
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            min-width: 280px;
+            z-index: 100;
+        }
+        #hud h3 { margin: 0 0 10px 0; color: #ff4444; font-size: 20px; }
+        #hud p { margin: 5px 0; }
+        .timer { font-size: 22px; color: #4CAF50; font-weight: bold; }
+        .death-timer { font-size: 20px; color: #ff6666; font-weight: bold; }
+        .cooldown { font-size: 16px; color: #FFC107; }
+        #minimap {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 200px;
+            background: transparent;
+            border: none;
+            border-radius: 50%;
+            z-index: 100;
+            overflow: hidden;
+        }
+        #minimapCanvas { 
+            width: 100%; 
+            height: 100%; 
+            border-radius: 50%;
+        }
+        #instructions {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            z-index: 350; /* Above start/pause overlays */
+            min-width: 280px;
+            display: none;
+        }
+        #instructions p { margin: 3px 0; }
+
+        #startScreen {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), transparent 55%), rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            color: white;
+            z-index: 300;
+        }
+        #startScreen h1 { margin: 0; font-size: 32px; letter-spacing: 1px; }
+        #startScreen .btn {
+            padding: 12px 22px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        #startScreen .btn.start { background: #4CAF50; color: white; }
+        #startScreen .btn.info { background: #2196F3; color: white; }
+
+        #instructionsClose {
+            display: block;
+            margin-top: 10px;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 8px;
+            background: #ff6666;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #pauseBtn, #showInstructionsBtn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 14px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 180;
+            background: rgba(0,0,0,0.75);
+            color: white;
+        }
+        #showInstructionsBtn { right: 120px; background: rgba(0,0,0,0.65); }
+
+        #pauseOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            display: none;
+            z-index: 200;
+        }
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            z-index: 200;
+            border: 3px solid #ff4444;
+        }
+        #gameOver h2 { color: #ff4444; margin-bottom: 20px; }
+        #gameOver button {
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #4CAF50;
+            border: none;
+            color: white;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        #gameOver button:hover { background: #45a049; }
+    </style>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="hud">
+        <h3>🚑 AMBULANCE MISSION</h3>
+        <p>Puntos: <span id="score">0</span> | Pacientes: <span id="patientsDelivered">0</span></p>
+        <p>Estado: <span id="gameStatus">Esperando paciente...</span></p>
+        <p class="timer">⏱️ Misión: <span id="timer">0.00</span>s</p>
+        <p class="death-timer" id="deathTimerText" style="display:none;">💀 Paciente muere en: <span id="deathTimer">0</span>s</p>
+        <p class="cooldown" id="cooldownText" style="display:none;">Próximo paciente: <span id="cooldown">0</span>s</p>
+        <p>Paciente: <span id="patientCoords">-</span></p>
+        <p id="speedIndicator">🛣️ En Calle | Velocidad: 0%</p>
+    </div>
+
+    <button id="pauseBtn">⏸️ Pausa</button>
+    <button id="showInstructionsBtn">ℹ️ Instrucciones</button>
+
+    <div id="minimap">
+        <canvas id="minimapCanvas" width="200" height="200"></canvas>
+    </div>
+
+    <div id="instructions">
+        <p><strong>Controles:</strong></p>
+        <p>W/↑ - Acelerar | S/↓ - Reversa</p>
+        <p>A/← - Izquierda | D/→ - Derecha</p>
+        <p>ESPACIO - Freno</p>
+        <p>E - Recoger/Entregar paciente</p>
+        <p style="color: #FFC107;">💡 Más rápido en calles</p>
+        <p style="color: #ff6666;">⚠️ ¡No atropelles al paciente!</p>
+        <button id="instructionsClose">Cerrar</button>
+    </div>
+
+    <div id="startScreen">
+        <h1>Ambulance Mission</h1>
+        <p style="margin:0 0 8px 0; opacity:0.85;">Rescata pacientes y llega al hospital a tiempo</p>
+        <button id="startBtn" class="btn start">▶️ Iniciar</button>
+        <button id="startInstructionsBtn" class="btn info">ℹ️ Ver instrucciones</button>
+    </div>
+
+    <div id="pauseOverlay"></div>
+
+    <div id="gameOver">
+        <h2>💀 GAME OVER</h2>
+        <p id="gameOverReason"></p>
+        <p>Puntos finales: <span id="finalScore">0</span></p>
+        <p>Pacientes salvados: <span id="finalPatients">0</span></p>
+        <button onclick="location.reload()">Reintentar</button>
+    </div>
+
+    <script>
+        // ============== GAME CONFIG ==============
+        const CONFIG = {
+            MAX_SPEED: 0.8,
+            ACCELERATION: 0.012,
+            BRAKE_FORCE: 0.92,
+            DECELERATION: 0.985,
+            MAX_STEERING: 0.035,
+            STEERING_SPEED: 0.0025,
+            STEERING_RETURN: 0.92,
+            GRASS_SPEED_MULT: 0.75,  // 25% slower on grass
+            ROAD_WIDTH: 22,
+            PICKUP_DISTANCE: 6,
+            COLLISION_DISTANCE: 2.5,
+            DEATH_TIME_BASE: 20,     // Base time before patient dies
+            DEATH_TIME_PER_DIST: 0.12, // Extra seconds per unit of distance
+            POINTS_PER_DELIVERY: 100,
+            TIME_BONUS_MULT: 5,      // Bonus points for quick delivery
+        };
+
+        // ============== GAME STATE ==============
+        let engine, scene, camera;
+        let ambulance, hospital, currentPatient;
+        let patientInAmbulance = false;
+        let patientsDelivered = 0;
+        let score = 0;
+        let missionStartTime = 0;
+        let isInCooldown = false;
+        let cooldownEndTime = 0;
+        let patientDeathTime = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let isPaused = true;
+        let pauseStart = 0;
+        
+        // Vehicle physics
+        let currentSpeed = 0;
+        let currentSteeringAngle = 0;
+        
+        // Input
+        const keys = {
+            forward: false, back: false, left: false, right: false, 
+            brake: false, action: false
+        };
+        
+        // World data
+        const roads = [];
+        const buildings = [];
+        
+        // Minimap (will be initialized in DOMContentLoaded)
+        let minimapCanvas, minimapCtx;
+
+        // ============== INITIALIZE ==============
+        window.addEventListener('DOMContentLoaded', function() {
+            const canvas = document.getElementById("renderCanvas");
+            engine = new BABYLON.Engine(canvas, true);
+            
+            // Initialize minimap
+            minimapCanvas = document.getElementById("minimapCanvas");
+            minimapCtx = minimapCanvas.getContext("2d");
+            
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color3(0.4, 0.6, 0.9);
+            
+            // Camera - smooth follow
+            camera = new BABYLON.FollowCamera("FollowCam", new BABYLON.Vector3(0, 10, -10), scene);
+            camera.radius = 35;
+            camera.heightOffset = 12;
+            camera.rotationOffset = 180;
+            camera.cameraAcceleration = 0.03;
+            camera.maxCameraSpeed = 8;
+            
+            // Lights
+            const hemiLight = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(1, 1, 0), scene);
+            hemiLight.intensity = 0.7;
+            
+            const dirLight = new BABYLON.DirectionalLight("dir", new BABYLON.Vector3(-1, -2, -1), scene);
+            dirLight.intensity = 0.5;
+            
+            // Create world
+            createSky();
+            createGround();
+            createRoads();
+            createBuildings();
+            
+            // Create entities
+            ambulance = createAmbulance();
+            hospital = createHospital();
+            
+            // Set camera target
+            camera.lockedTarget = ambulance;
+            
+            // Input handlers
+            setupInput();
+
+            // UI buttons
+            const startBtn = document.getElementById("startBtn");
+            const startInstructionsBtn = document.getElementById("startInstructionsBtn");
+            const showInstructionsBtn = document.getElementById("showInstructionsBtn");
+            const instructionsClose = document.getElementById("instructionsClose");
+            const pauseBtn = document.getElementById("pauseBtn");
+
+            startBtn.addEventListener("click", startGame);
+            startInstructionsBtn.addEventListener("click", () => showInstructions(true));
+            showInstructionsBtn.addEventListener("click", () => showInstructions(true));
+            instructionsClose.addEventListener("click", () => showInstructions(false));
+            pauseBtn.addEventListener("click", togglePause);
+            
+            // Game loop
+            scene.registerBeforeRender(gameLoop);
+            
+            // Run engine
+            engine.runRenderLoop(() => scene.render());
+            window.addEventListener("resize", () => engine.resize());
+        });
+
+        // ============== INPUT (Like reference code) ==============
+        function setupInput() {
+            scene.onKeyboardObservable.add(e => {
+                const isDown = e.type === BABYLON.KeyboardEventTypes.KEYDOWN;
+                switch (e.event.key.toLowerCase()) {
+                    case "w": case "arrowup": keys.forward = isDown; break;
+                    case "s": case "arrowdown": keys.back = isDown; break;
+                    case "a": case "arrowleft": keys.left = isDown; break;
+                    case "d": case "arrowright": keys.right = isDown; break;
+                    case " ": keys.brake = isDown; break;
+                    case "e": 
+                        if (isDown && !keys.action) {
+                            keys.action = true;
+                            handleAction();
+                        } else if (!isDown) {
+                            keys.action = false;
+                        }
+                        break;
+                    case "p":
+                        if (isDown) togglePause();
+                        break;
+                }
+            });
+        }
+
+        function startGame() {
+            if (gameStarted) return;
+            gameStarted = true;
+            isPaused = false;
+            pauseStart = 0;
+            document.getElementById("startScreen").style.display = "none";
+            document.getElementById("pauseOverlay").style.display = "none";
+            document.getElementById("pauseBtn").textContent = "⏸️ Pausa";
+            setTimeout(() => spawnPatient(), 300);
+        }
+
+        function togglePause() {
+            if (!gameStarted || gameOver) return;
+            const pauseOverlay = document.getElementById("pauseOverlay");
+            const pauseBtn = document.getElementById("pauseBtn");
+            if (!isPaused) {
+                isPaused = true;
+                pauseStart = Date.now();
+                pauseOverlay.style.display = "block";
+                pauseBtn.textContent = "▶️ Reanudar";
+            } else {
+                const delta = Date.now() - pauseStart;
+                if (patientDeathTime > 0) patientDeathTime += delta;
+                if (isInCooldown && cooldownEndTime > 0) cooldownEndTime += delta;
+                if (patientInAmbulance && missionStartTime > 0) missionStartTime += delta;
+                isPaused = false;
+                pauseOverlay.style.display = "none";
+                pauseBtn.textContent = "⏸️ Pausa";
+            }
+        }
+
+        function showInstructions(show) {
+            const modal = document.getElementById("instructions");
+            modal.style.display = show ? "block" : "none";
+        }
+
+        // ============== GAME LOOP ==============
+        function gameLoop() {
+            if (gameOver || !gameStarted || isPaused) return;
+            
+            // Steering - A turns left (negative rotation), D turns right (positive)
+            if (keys.left) {
+                currentSteeringAngle = Math.max(currentSteeringAngle - CONFIG.STEERING_SPEED, -CONFIG.MAX_STEERING);
+            } else if (keys.right) {
+                currentSteeringAngle = Math.min(currentSteeringAngle + CONFIG.STEERING_SPEED, CONFIG.MAX_STEERING);
+            } else {
+                // Return steering to center
+                currentSteeringAngle *= CONFIG.STEERING_RETURN;
+            }
+            
+            // Acceleration/Braking
+            if (keys.brake) {
+                currentSpeed *= CONFIG.BRAKE_FORCE;
+            } else if (keys.forward) {
+                currentSpeed = Math.min(currentSpeed + CONFIG.ACCELERATION, CONFIG.MAX_SPEED);
+            } else if (keys.back) {
+                currentSpeed = Math.max(currentSpeed - CONFIG.ACCELERATION, -CONFIG.MAX_SPEED * 0.4);
+            } else {
+                currentSpeed *= CONFIG.DECELERATION;
+            }
+            
+            // Speed penalty on grass
+            const onRoad = isOnRoad(ambulance.position.x, ambulance.position.z);
+            const speedMult = onRoad ? 1.0 : CONFIG.GRASS_SPEED_MULT;
+            const effectiveSpeed = currentSpeed * speedMult;
+            
+            // Apply rotation based on speed - only steer when moving
+            if (Math.abs(currentSpeed) > 0.01) {
+                const steerFactor = Math.min(1, Math.abs(currentSpeed) / 0.3); // Smoother at low speeds
+                ambulance.rotation.y += currentSteeringAngle * steerFactor;
+            }
+            
+            // Store position for collision
+            const oldX = ambulance.position.x;
+            const oldZ = ambulance.position.z;
+            
+            // Move ambulance
+            ambulance.position.x += Math.sin(ambulance.rotation.y) * effectiveSpeed;
+            ambulance.position.z += Math.cos(ambulance.rotation.y) * effectiveSpeed;
+            
+            // Building collision detection
+            for (const b of buildings) {
+                if (Math.abs(ambulance.position.x - b.x) < (b.w/2 + 2) &&
+                    Math.abs(ambulance.position.z - b.z) < (b.d/2 + 2)) {
+                    ambulance.position.x = oldX;
+                    ambulance.position.z = oldZ;
+                    currentSpeed *= 0.3;
+                    break;
+                }
+            }
+            
+            // Patient collision (running over = death)
+            if (currentPatient && !patientInAmbulance) {
+                const distToPatient = BABYLON.Vector3.Distance(ambulance.position, currentPatient.position);
+                if (distToPatient < CONFIG.COLLISION_DISTANCE) {
+                    // Ran over patient!
+                    endGame("¡Atropellaste al paciente!");
+                    return;
+                }
+            }
+            
+            // Keep in bounds
+            ambulance.position.x = Math.max(-240, Math.min(240, ambulance.position.x));
+            ambulance.position.z = Math.max(-240, Math.min(240, ambulance.position.z));
+            
+            // Check patient death timer
+            if (currentPatient && !patientInAmbulance && Date.now() >= patientDeathTime) {
+                endGame("¡El paciente murió esperando!");
+                return;
+            }
+            
+            // Update HUD
+            updateHUD(onRoad);
+            
+            // Cooldown check
+            if (isInCooldown && Date.now() >= cooldownEndTime) {
+                isInCooldown = false;
+                document.getElementById("cooldownText").style.display = "none";
+                spawnPatient();
+            }
+            
+            // Update minimap
+            updateMinimap();
+        }
+
+        // ============== WORLD CREATION ==============
+        function createSky() {
+            const skyMaterial = new BABYLON.SkyMaterial("skyMaterial", scene);
+            skyMaterial.backFaceCulling = false;
+            const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", { size: 1000 }, scene);
+            skybox.material = skyMaterial;
+        }
+
+        function createGround() {
+            const heightMapUrl = "assets/textures/terrain/heightMap.png";
+            const mixMapUrl    = "assets/textures/terrain/mixMap.png";
+            const grassUrl     = "assets/textures/terrain/grass.png";
+            const rockUrl      = "assets/textures/terrain/rock.png";
+            const floorUrl     = "assets/textures/terrain/floor.png";
+            const grassNUrl    = "assets/textures/terrain/grassn.png";
+            const rockNUrl     = "assets/textures/terrain/rockn.png";
+            const floorNUrl    = "assets/textures/terrain/floor_bump.png";
+
+            const terrainSize = 500;
+            const terrainSubdivs = 100;
+            const minH = 0;
+            const maxH = 12;
+
+            // Toggle to true only when the terrain textures exist; otherwise we use flat ground
+            const preferTerrain = false;
+
+            if (preferTerrain) {
+                try {
+                    const terrain = BABYLON.Mesh.CreateGroundFromHeightMap(
+                        "terrain",
+                        heightMapUrl,
+                        terrainSize,
+                        terrainSize,
+                        terrainSubdivs,
+                        minH,
+                        maxH,
+                        scene,
+                        false,
+                        () => {
+                            try {
+                                const terrainMaterial = new BABYLON.TerrainMaterial("terrainMaterial", scene);
+                                terrainMaterial.mixTexture = new BABYLON.Texture(mixMapUrl, scene);
+                                terrainMaterial.diffuseTexture1 = new BABYLON.Texture(grassUrl, scene);
+                                terrainMaterial.diffuseTexture2 = new BABYLON.Texture(rockUrl, scene);
+                                terrainMaterial.diffuseTexture3 = new BABYLON.Texture(floorUrl, scene);
+                                terrainMaterial.bumpTexture1 = new BABYLON.Texture(grassNUrl, scene);
+                                terrainMaterial.bumpTexture2 = new BABYLON.Texture(rockNUrl, scene);
+                                terrainMaterial.bumpTexture3 = new BABYLON.Texture(floorNUrl, scene);
+
+                                terrainMaterial.diffuseTexture1.uScale = terrainMaterial.diffuseTexture1.vScale = 12;
+                                terrainMaterial.diffuseTexture2.uScale = terrainMaterial.diffuseTexture2.vScale = 12;
+                                terrainMaterial.diffuseTexture3.uScale = terrainMaterial.diffuseTexture3.vScale = 12;
+
+                                terrain.material = terrainMaterial;
+                                terrain.position.y = -2;
+                            } catch (matErr) {
+                                console.warn("Terrain material failed, using flat ground.", matErr);
+                                createFlatGround();
+                            }
+                        },
+                        (message) => {
+                            console.warn("Heightmap load failed, using flat ground.", message);
+                            createFlatGround();
+                        }
+                    );
+
+                    // Slightly raise roads above terrain
+                    return;
+                } catch (err) {
+                    console.warn("Terrain creation failed, fallback to flat ground.", err);
+                }
+            }
+
+            createFlatGround();
+        }
+
+        function createFlatGround() {
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 500, height: 500 }, scene);
+            const mat = new BABYLON.StandardMaterial("groundMat", scene);
+            try {
+                const grassTex = new BABYLON.Texture(
+                    "assets/textures/terrain/grass.png",
+                    scene,
+                    true,
+                    false,
+                    BABYLON.Texture.TRILINEAR_SAMPLINGMODE,
+                    () => {
+                        // onLoad OK
+                        console.log("grass.png loaded from local assets.");
+                    },
+                    () => {
+                        console.warn("grass.png not found, using CDN fallback.");
+                        try {
+                            const cdnTex = new BABYLON.Texture("https://t3.ftcdn.net/jpg/02/49/68/72/360_F_249687268_Yl4AswCdwBQS7NA6hczKq0pfnjQs02UP.jpg", scene, true, false);
+                            cdnTex.uScale = cdnTex.vScale = 20;
+                            mat.diffuseTexture = cdnTex;
+                        } catch (cdnErr) {
+                            mat.diffuseTexture = null;
+                            mat.diffuseColor = new BABYLON.Color3(0.25, 0.55, 0.25);
+                        }
+                    }
+                );
+                grassTex.uScale = grassTex.vScale = 20;
+                mat.diffuseTexture = grassTex;
+            } catch (texErr) {
+                mat.diffuseColor = new BABYLON.Color3(0.25, 0.55, 0.25);
+            }
+            ground.material = mat;
+        }
+        
+        function createRoads() {
+            const roadMat = new BABYLON.StandardMaterial("roadMat", scene);
+            roadMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+            
+            const rw = CONFIG.ROAD_WIDTH;
+            const roadPositions = [-240, -180, -120, -60, 0, 60, 120, 180, 240];
+            
+            // Horizontal roads (running East-West) - each at different Z position
+            roadPositions.forEach(z => {
+                const road = BABYLON.MeshBuilder.CreateGround("roadH", { 
+                    width: 500,  // spans full X axis
+                    height: rw   // narrow in Z
+                }, scene);
+                road.material = roadMat;
+                road.position = new BABYLON.Vector3(0, 0.01, z);
+                roads.push({ x: 0, z: z, w: 500, h: rw });
+            });
+            
+            // Vertical roads (running North-South) - each at different X position
+            roadPositions.forEach(x => {
+                const road = BABYLON.MeshBuilder.CreateGround("roadV", { 
+                    width: rw,   // narrow in X
+                    height: 500  // spans full Z axis
+                }, scene);
+                road.material = roadMat;
+                road.position = new BABYLON.Vector3(x, 0.01, 0);
+                roads.push({ x: x, z: 0, w: rw, h: 500 });
+            });
+            
+            // Road markings (dashed center lines)
+            const lineMat = new BABYLON.StandardMaterial("lineMat", scene);
+            lineMat.diffuseColor = new BABYLON.Color3(1, 1, 0);
+            lineMat.emissiveColor = new BABYLON.Color3(0.3, 0.3, 0);
+
+            const dashLength = 8;
+            const gapLength = 8;
+            const lineWidth = 0.4;
+            const halfSpan = 250; // Roads span -250..250
+
+            // Horizontal dashed lines
+            roadPositions.forEach(z => {
+                for (let x = -halfSpan; x < halfSpan; x += dashLength + gapLength) {
+                    const seg = BABYLON.MeshBuilder.CreateGround(`lineH_${z}_${x.toFixed(0)}`, { width: dashLength, height: lineWidth }, scene);
+                    seg.material = lineMat;
+                    seg.position = new BABYLON.Vector3(x + dashLength / 2, 0.02, z);
+                }
+            });
+
+            // Vertical dashed lines
+            roadPositions.forEach(x => {
+                for (let z = -halfSpan; z < halfSpan; z += dashLength + gapLength) {
+                    const seg = BABYLON.MeshBuilder.CreateGround(`lineV_${x.toFixed(0)}_${z.toFixed(0)}`, { width: lineWidth, height: dashLength }, scene);
+                    seg.material = lineMat;
+                    seg.position = new BABYLON.Vector3(x, 0.02, z + dashLength / 2);
+                }
+            });
+        }
+
+        
+        function createBuildings() {
+            const colors = [
+                new BABYLON.Color3(0.85, 0.65, 0.55),
+                new BABYLON.Color3(0.65, 0.75, 0.85),
+                new BABYLON.Color3(0.75, 0.85, 0.65),
+                new BABYLON.Color3(0.95, 0.85, 0.75),
+                new BABYLON.Color3(0.75, 0.65, 0.8),
+            ];
+            
+            // Buildings placed in blocks between the road grid
+            // Roads are at: -180, -120, -60, 0, 60, 120, 180
+            // Safe zones are between them (with margin for road width)
+            const roadPositions = [-180, -120, -60, 0, 60, 120, 180];
+            const margin = 15; // Road half-width + buffer
+            
+            const positions = [];
+            
+            for (let i = 0; i < roadPositions.length - 1; i++) {
+                for (let j = 0; j < roadPositions.length - 1; j++) {
+                    const xMin = roadPositions[i] + margin;
+                    const xMax = roadPositions[i + 1] - margin;
+                    const zMin = roadPositions[j] + margin;
+                    const zMax = roadPositions[j + 1] - margin;
+                    
+                    // Skip if zone is too small
+                    if (xMax - xMin < 20 || zMax - zMin < 20) continue;
+                    
+                    // Add 1-2 buildings per block
+                    const count = 1 + Math.floor(Math.random() * 2);
+                    for (let k = 0; k < count; k++) {
+                        const x = xMin + 10 + Math.random() * (xMax - xMin - 20);
+                        const z = zMin + 10 + Math.random() * (zMax - zMin - 20);
+                        positions.push({ x, z });
+                    }
+                }
+            }
+            
+            positions.forEach((pos, i) => {
+                const w = 12 + Math.random() * 8;
+                const h = 10 + Math.random() * 10;
+                const d = 12 + Math.random() * 8;
+                
+                const building = BABYLON.MeshBuilder.CreateBox("building" + i, { width: w, height: h, depth: d }, scene);
+                const mat = new BABYLON.StandardMaterial("buildMat" + i, scene);
+                mat.diffuseColor = colors[i % colors.length];
+                building.material = mat;
+                building.position = new BABYLON.Vector3(pos.x, h/2, pos.z);
+                
+                // Roof
+                const roof = BABYLON.MeshBuilder.CreateCylinder("roof" + i, {
+                    diameterTop: 0, diameterBottom: Math.max(w, d) * 1.1, height: 3, tessellation: 4
+                }, scene);
+                roof.rotation.y = Math.PI / 4;
+                const roofMat = new BABYLON.StandardMaterial("roofMat" + i, scene);
+                roofMat.diffuseColor = new BABYLON.Color3(0.6, 0.25, 0.15);
+                roof.material = roofMat;
+                roof.position = new BABYLON.Vector3(pos.x, h + 1.5, pos.z);
+                
+                buildings.push({ x: pos.x, z: pos.z, w: w + 2, d: d + 2 });
+            });
+        }
+
+        // ============== ENTITIES ==============
+        function createAmbulance() {
+            const group = new BABYLON.TransformNode("ambulance", scene);
+            
+            // Body
+            const body = BABYLON.MeshBuilder.CreateBox("body", { width: 2.5, height: 1.4, depth: 5 }, scene);
+            const bodyMat = new BABYLON.StandardMaterial("bodyMat", scene);
+            bodyMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            body.material = bodyMat;
+            body.position.y = 1;
+            body.parent = group;
+            
+            // Red stripe
+            const stripe = BABYLON.MeshBuilder.CreateBox("stripe", { width: 2.55, height: 0.35, depth: 5 }, scene);
+            const stripeMat = new BABYLON.StandardMaterial("stripeMat", scene);
+            stripeMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            stripeMat.emissiveColor = new BABYLON.Color3(0.4, 0, 0);
+            stripe.material = stripeMat;
+            stripe.position.y = 1;
+            stripe.parent = group;
+            
+            // Cabin
+            const cabin = BABYLON.MeshBuilder.CreateBox("cabin", { width: 2.2, height: 1, depth: 1.8 }, scene);
+            cabin.material = bodyMat;
+            cabin.position.set(0, 1.9, 1.3);
+            cabin.parent = group;
+            
+            // Windshield
+            const windshield = BABYLON.MeshBuilder.CreateBox("windshield", { width: 2, height: 0.7, depth: 0.1 }, scene);
+            const glassMat = new BABYLON.StandardMaterial("glassMat", scene);
+            glassMat.diffuseColor = new BABYLON.Color3(0.2, 0.35, 0.55);
+            glassMat.alpha = 0.7;
+            windshield.material = glassMat;
+            windshield.position.set(0, 2, 2.15);
+            windshield.parent = group;
+            
+            // Light bar
+            const lightBar = BABYLON.MeshBuilder.CreateBox("lightBar", { width: 1.6, height: 0.25, depth: 0.4 }, scene);
+            const lightMat = new BABYLON.StandardMaterial("lightMat", scene);
+            lightMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            lightMat.emissiveColor = new BABYLON.Color3(1, 0.2, 0.2);
+            lightBar.material = lightMat;
+            lightBar.position.set(0, 2.55, 1.3);
+            lightBar.parent = group;
+            
+            // Animate light bar
+            let lightPhase = 0;
+            scene.registerBeforeRender(() => {
+                lightPhase += 0.15;
+                const intensity = 0.5 + Math.sin(lightPhase) * 0.5;
+                lightMat.emissiveColor = new BABYLON.Color3(intensity, 0, 0);
+            });
+            
+            // Wheels
+            const wheelMat = new BABYLON.StandardMaterial("wheelMat", scene);
+            wheelMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.15);
+            
+            const wheelPositions = [
+                [-1.1, 0.4, 1.5], [1.1, 0.4, 1.5],
+                [-1.1, 0.4, -1.5], [1.1, 0.4, -1.5]
+            ];
+            
+            wheelPositions.forEach((pos, i) => {
+                const wheel = BABYLON.MeshBuilder.CreateCylinder("wheel" + i, { diameter: 0.8, height: 0.4 }, scene);
+                wheel.material = wheelMat;
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position = new BABYLON.Vector3(...pos);
+                wheel.parent = group;
+            });
+            
+            // Red cross on back
+            const crossMat = new BABYLON.StandardMaterial("crossMat", scene);
+            crossMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            crossMat.emissiveColor = new BABYLON.Color3(0.5, 0, 0);
+            
+            const crossH = BABYLON.MeshBuilder.CreateBox("crossH", { width: 0.8, height: 0.12, depth: 0.25 }, scene);
+            const crossV = BABYLON.MeshBuilder.CreateBox("crossV", { width: 0.25, height: 0.12, depth: 0.8 }, scene);
+            crossH.material = crossMat;
+            crossV.material = crossMat;
+            crossH.position.set(0, 1.5, -2.45);
+            crossV.position.set(0, 1.5, -2.45);
+            crossH.parent = group;
+            crossV.parent = group;
+            
+            group.position.y = 0.3;
+            return group;
+        }
+        
+        function createHospital() {
+            const group = new BABYLON.TransformNode("hospital", scene);
+            
+            // Main building - WHITE
+            const main = BABYLON.MeshBuilder.CreateBox("hospitalMain", { width: 25, height: 15, depth: 25 }, scene);
+            const mat = new BABYLON.StandardMaterial("hospitalMat", scene);
+            mat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            main.material = mat;
+            main.position.y = 7.5;
+            main.parent = group;
+            
+            // Red cross on each side
+            const crossMat = new BABYLON.StandardMaterial("hCrossMat", scene);
+            crossMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            crossMat.emissiveColor = new BABYLON.Color3(0.6, 0, 0);
+            
+            [[0, 10, 12.8], [0, 10, -12.8], [12.8, 10, 0], [-12.8, 10, 0]].forEach((pos, i) => {
+                const hCrossH = BABYLON.MeshBuilder.CreateBox("hCrossH" + i, { width: 8, height: 2.5, depth: 0.5 }, scene);
+                const hCrossV = BABYLON.MeshBuilder.CreateBox("hCrossV" + i, { width: 2.5, height: 8, depth: 0.5 }, scene);
+                hCrossH.material = crossMat;
+                hCrossV.material = crossMat;
+                
+                if (i < 2) {
+                    hCrossH.position.set(pos[0], pos[1], pos[2]);
+                    hCrossV.position.set(pos[0], pos[1], pos[2]);
+                } else {
+                    hCrossH.rotation.y = Math.PI / 2;
+                    hCrossV.rotation.y = Math.PI / 2;
+                    hCrossH.position.set(pos[0], pos[1], pos[2]);
+                    hCrossV.position.set(pos[0], pos[1], pos[2]);
+                }
+                hCrossH.parent = group;
+                hCrossV.parent = group;
+            });
+            
+            // Helipad on roof
+            const helipad = BABYLON.MeshBuilder.CreateCylinder("helipad", { diameter: 12, height: 0.3 }, scene);
+            const heliMat = new BABYLON.StandardMaterial("heliMat", scene);
+            heliMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+            helipad.material = heliMat;
+            helipad.position.y = 15.15;
+            helipad.parent = group;
+            
+            // H on helipad
+            const hMat = new BABYLON.StandardMaterial("hMat", scene);
+            hMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+            const hLeft = BABYLON.MeshBuilder.CreateBox("hLeft", { width: 0.8, height: 0.1, depth: 5 }, scene);
+            const hRight = BABYLON.MeshBuilder.CreateBox("hRight", { width: 0.8, height: 0.1, depth: 5 }, scene);
+            const hMid = BABYLON.MeshBuilder.CreateBox("hMid", { width: 3, height: 0.1, depth: 0.8 }, scene);
+            hLeft.material = hMat; hRight.material = hMat; hMid.material = hMat;
+            hLeft.position.set(-1.5, 15.35, 0);
+            hRight.position.set(1.5, 15.35, 0);
+            hMid.position.set(0, 15.35, 0);
+            hLeft.parent = group; hRight.parent = group; hMid.parent = group;
+            
+            // Position at intersection for easy access
+            group.position = new BABYLON.Vector3(-120, 0, -120);
+            
+            buildings.push({ x: -120, z: -120, w: 28, d: 28 });
+            
+            return group;
+        }
+        
+        function createPatient() {
+            const group = new BABYLON.TransformNode("patient", scene);
+            
+            // Body
+            const body = BABYLON.MeshBuilder.CreateCapsule("patientBody", { height: 1.8, radius: 0.35 }, scene);
+            const mat = new BABYLON.StandardMaterial("patientMat", scene);
+            mat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 1);
+            body.material = mat;
+            body.position.y = 0.9;
+            body.parent = group;
+            
+            // Head
+            const head = BABYLON.MeshBuilder.CreateSphere("head", { diameter: 0.5 }, scene);
+            const headMat = new BABYLON.StandardMaterial("headMat", scene);
+            headMat.diffuseColor = new BABYLON.Color3(0.9, 0.75, 0.65);
+            head.material = headMat;
+            head.position.y = 1.9;
+            head.parent = group;
+            
+            // Warning marker (pulsing ring)
+            const marker = BABYLON.MeshBuilder.CreateTorus("marker", { diameter: 3, thickness: 0.25 }, scene);
+            const markerMat = new BABYLON.StandardMaterial("markerMat", scene);
+            markerMat.diffuseColor = new BABYLON.Color3(1, 0.8, 0);
+            markerMat.emissiveColor = new BABYLON.Color3(0.6, 0.5, 0);
+            marker.material = markerMat;
+            marker.position.y = 0.15;
+            marker.parent = group;
+            
+            // Exclamation mark above head
+            const exclaim = BABYLON.MeshBuilder.CreateCylinder("exclaim", { height: 0.8, diameter: 0.15 }, scene);
+            const exclaimDot = BABYLON.MeshBuilder.CreateSphere("exclaimDot", { diameter: 0.2 }, scene);
+            const exclaimMat = new BABYLON.StandardMaterial("exclaimMat", scene);
+            exclaimMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            exclaimMat.emissiveColor = new BABYLON.Color3(0.8, 0, 0);
+            exclaim.material = exclaimMat;
+            exclaimDot.material = exclaimMat;
+            exclaim.position.y = 2.8;
+            exclaimDot.position.y = 2.2;
+            exclaim.parent = group;
+            exclaimDot.parent = group;
+            
+            // Animate
+            scene.registerBeforeRender(() => {
+                if (marker && !marker.isDisposed()) {
+                    marker.rotation.y += 0.03;
+                    const scale = 1 + Math.sin(Date.now() / 150) * 0.15;
+                    marker.scaling.set(scale, 1, scale);
+                }
+                if (exclaim && !exclaim.isDisposed()) {
+                    exclaim.position.y = 2.8 + Math.sin(Date.now() / 200) * 0.2;
+                    exclaimDot.position.y = 2.2 + Math.sin(Date.now() / 200) * 0.2;
+                }
+            });
+            
+            return group;
+        }
+
+        // ============== GAME LOGIC ==============
+        function isOnRoad(x, z) {
+            for (const road of roads) {
+                if (Math.abs(x - road.x) <= road.w/2 && Math.abs(z - road.z) <= road.h/2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function isSpawnBlocked(x, z) {
+            for (const b of buildings) {
+                if (Math.abs(x - b.x) < (b.w / 2 + 4) && Math.abs(z - b.z) < (b.d / 2 + 4)) {
+                    return true;
+                }
+            }
+            if (hospital && Math.abs(x - hospital.position.x) < 18 && Math.abs(z - hospital.position.z) < 18) {
+                return true;
+            }
+            return false;
+        }
+        
+        function spawnPatient() {
+            if (isInCooldown || gameOver) return;
+            
+            let x, z, attempts = 0;
+            do {
+                x = (Math.random() - 0.5) * 420;
+                z = (Math.random() - 0.5) * 420;
+                attempts++;
+            } while (attempts < 200 && (!isOnRoad(x, z) || isSpawnBlocked(x, z)));
+
+            if (!isOnRoad(x, z) || isSpawnBlocked(x, z)) {
+                const fallbackSpots = [
+                    { x: 0, z: 0 },
+                    { x: 60, z: 0 },
+                    { x: -60, z: 0 },
+                    { x: 0, z: 60 },
+                    { x: 0, z: -60 }
+                ];
+                const safe = fallbackSpots.find(p => isOnRoad(p.x, p.z) && !isSpawnBlocked(p.x, p.z));
+                x = safe ? safe.x : 0;
+                z = safe ? safe.z : 0;
+            }
+            
+            currentPatient = createPatient();
+            currentPatient.position = new BABYLON.Vector3(x, 0, z);
+            
+            // Calculate death time based on distance
+            const dist = BABYLON.Vector3.Distance(ambulance.position, currentPatient.position);
+            const deathSeconds = CONFIG.DEATH_TIME_BASE + (dist * CONFIG.DEATH_TIME_PER_DIST);
+            patientDeathTime = Date.now() + deathSeconds * 1000;
+            
+            document.getElementById("gameStatus").textContent = "🚨 ¡Paciente en emergencia!";
+            document.getElementById("patientCoords").textContent = `X: ${x.toFixed(0)}, Z: ${z.toFixed(0)} (${dist.toFixed(0)}m)`;
+            document.getElementById("deathTimerText").style.display = "block";
+        }
+        
+        function handleAction() {
+            if (isInCooldown || gameOver) return;
+            
+            if (!patientInAmbulance && currentPatient) {
+                const dist = BABYLON.Vector3.Distance(ambulance.position, currentPatient.position);
+                if (dist < CONFIG.PICKUP_DISTANCE && dist > CONFIG.COLLISION_DISTANCE) {
+                    // Pickup - must be close but not running over
+                    currentPatient.dispose();
+                    patientInAmbulance = true;
+                    missionStartTime = Date.now();
+                    document.getElementById("gameStatus").textContent = "🏥 ¡Llevar al hospital rápido!";
+                    document.getElementById("deathTimerText").style.display = "none";
+                }
+            } else if (patientInAmbulance) {
+                const dist = BABYLON.Vector3.Distance(ambulance.position, hospital.position);
+                if (dist < 18) {
+                    // Deliver
+                    const deliveryTime = (Date.now() - missionStartTime) / 1000;
+                    patientInAmbulance = false;
+                    patientsDelivered++;
+                    currentPatient = null;
+                    
+                    // Calculate score
+                    const basePoints = CONFIG.POINTS_PER_DELIVERY;
+                    const timeBonus = Math.max(0, Math.floor((30 - deliveryTime) * CONFIG.TIME_BONUS_MULT));
+                    const earnedPoints = basePoints + timeBonus;
+                    score += earnedPoints;
+                    
+                    document.getElementById("patientsDelivered").textContent = patientsDelivered;
+                    document.getElementById("score").textContent = score;
+                    document.getElementById("gameStatus").textContent = `✅ +${earnedPoints} pts (${deliveryTime.toFixed(1)}s)`;
+                    
+                    // Start cooldown
+                    isInCooldown = true;
+                    const cooldownSecs = 3 + Math.random() * 5;
+                    cooldownEndTime = Date.now() + cooldownSecs * 1000;
+                    document.getElementById("cooldownText").style.display = "block";
+                }
+            }
+        }
+        
+        function endGame(reason) {
+            gameOver = true;
+            document.getElementById("gameOver").style.display = "block";
+            document.getElementById("gameOverReason").textContent = reason;
+            document.getElementById("finalScore").textContent = score;
+            document.getElementById("finalPatients").textContent = patientsDelivered;
+        }
+        
+        function updateHUD(onRoad) {
+            const speedPct = Math.abs(currentSpeed / CONFIG.MAX_SPEED * 100).toFixed(0);
+            const icon = onRoad ? "🛣️" : "🌿";
+            const text = onRoad ? "En Calle" : "En Césped";
+            const color = onRoad ? "#4CAF50" : "#FFC107";
+            document.getElementById("speedIndicator").innerHTML = 
+                `<span style="color:${color}">${icon} ${text}</span> | Velocidad: ${speedPct}%`;
+            
+            if (patientInAmbulance && missionStartTime > 0) {
+                const elapsed = ((Date.now() - missionStartTime) / 1000).toFixed(1);
+                document.getElementById("timer").textContent = elapsed;
+            }
+            
+            if (currentPatient && !patientInAmbulance) {
+                const remaining = Math.max(0, (patientDeathTime - Date.now()) / 1000).toFixed(1);
+                document.getElementById("deathTimer").textContent = remaining;
+                
+                // Flash warning when low time
+                if (remaining < 5) {
+                    document.getElementById("deathTimerText").style.color = 
+                        Math.floor(Date.now() / 200) % 2 === 0 ? "#ff0000" : "#ff6666";
+                }
+            }
+            
+            if (isInCooldown) {
+                const remaining = Math.max(0, (cooldownEndTime - Date.now()) / 1000).toFixed(1);
+                document.getElementById("cooldown").textContent = remaining;
+            }
+        }
+
+        // ============== MINIMAP (Circular, rotating world) ==============
+        function updateMinimap() {
+            const ctx = minimapCtx;
+            const size = 200;
+            const scale = 2.5;
+            const radius = size / 2;
+            
+            // Clear with circular clip
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(radius, radius, radius, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Background
+            ctx.fillStyle = "rgba(25, 50, 25, 0.95)";
+            ctx.fillRect(0, 0, size, size);
+            
+            const cx = ambulance.position.x;
+            const cz = ambulance.position.z;
+            const rotation = -ambulance.rotation.y; // Inverted so forward is up on minimap
+            
+            // Rotate entire world around center (ambulance stays fixed pointing up)
+            ctx.translate(radius, radius);
+            ctx.rotate(rotation);
+            ctx.translate(-radius, -radius);
+            
+            // Roads (rotated with world)
+            ctx.fillStyle = "rgba(70, 70, 70, 0.9)";
+            roads.forEach(r => {
+                const rx = radius + (r.x - cx) / scale;
+                const rz = radius - (r.z - cz) / scale; // Inverted Z
+                ctx.fillRect(rx - r.w/scale/2, rz - r.h/scale/2, r.w/scale, r.h/scale);
+            });
+            
+            // Buildings (rotated with world)
+            ctx.fillStyle = "rgba(150, 120, 100, 0.85)";
+            buildings.forEach(b => {
+                const bx = radius + (b.x - cx) / scale;
+                const bz = radius - (b.z - cz) / scale; // Inverted Z
+                const dist = Math.sqrt(Math.pow(bx - radius, 2) + Math.pow(bz - radius, 2));
+                if (dist < radius + 20) {
+                    ctx.fillRect(bx - b.w/scale/2, bz - b.d/scale/2, b.w/scale, b.d/scale);
+                }
+            });
+            
+            // Hospital (rotated with world)
+            const hx = radius + (hospital.position.x - cx) / scale;
+            const hz = radius - (hospital.position.z - cz) / scale; // Inverted Z
+            ctx.fillStyle = "white";
+            ctx.fillRect(hx - 5, hz - 5, 10, 10);
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(hx - 5, hz - 5, 10, 10);
+            ctx.fillStyle = "red";
+            ctx.font = "bold 10px Arial";
+            ctx.fillText("H", hx - 3, hz + 3);
+            
+            // Patient (rotated with world)
+            if (currentPatient && !patientInAmbulance) {
+                const px = radius + (currentPatient.position.x - cx) / scale;
+                const pz = radius - (currentPatient.position.z - cz) / scale; // Inverted Z
+                
+                const pulse = 5 + Math.sin(Date.now() / 150) * 2;
+                ctx.fillStyle = "rgba(255, 200, 0, 0.9)";
+                ctx.beginPath();
+                ctx.arc(px, pz, pulse, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Line to patient
+                ctx.strokeStyle = "rgba(255, 200, 0, 0.6)";
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(radius, radius);
+                ctx.lineTo(px, pz);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            ctx.restore();
+            
+            // Ambulance icon (fixed at center, always pointing UP)
+            ctx.fillStyle = patientInAmbulance ? "lime" : "white";
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(radius, radius - 8);
+            ctx.lineTo(radius - 5, radius + 6);
+            ctx.lineTo(radius + 5, radius + 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Circular border
+            ctx.beginPath();
+            ctx.arc(radius, radius, radius - 2, 0, Math.PI * 2);
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // Direction indicator (N always at top means forward)
+            ctx.fillStyle = "white";
+            ctx.font = "bold 11px Arial";
+            ctx.fillText("▲", radius - 5, 14);
+        }
+    </script>
+</body>
+</html>
