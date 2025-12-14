@@ -1,10 +1,12 @@
 # Taller El Diseño de Doble Propósito
 
-**Tema:** El "Por Qué" y el "Para Qué" - Modelos de Negocio y Aplicaciones
+**Tema:** El Diseño de Doble Propósito
 
-**Programa:** Maestría en Desarrollo de Videojuegos
-
-**Fecha:** Diciembre 2025
+**Asignatura:** DESARROLLO DE JUEGOS INTERACTIVOS (ISWD823)  
+**Programa:** Ingeniería de Software  
+**Estudiante:** Aiden de Castro 
+**Fecha:** Diciembre 2025 
+**Docente:** Ing. Adrian Eguez
 
 ---
 

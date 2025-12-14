@@ -1,12 +1,20 @@
-% MDA — Taller 1.1
-
 # Taller 1.1 — Deconstruyendo la Diversión
+
+**Asignatura:** DESARROLLO DE JUEGOS INTERACTIVOS (ISWD823)  
+
+**Programa:** Ingeniería de Software 
+
+**Estudiante:** Aiden de Castro 
+
+**Fecha:** Diciembre 2025 
+
+**Docente:** Ing. Adrian Eguez
 
 **Análisis de Sistemas con el framework MDA en la Ingeniería de Software de Videojuegos**
 
 **Resumen:** Este informe aplica el framework MDA (Mecánicas, Dinámicas, Estéticas) para analizar seis géneros principales (Acción, Aventura, RPG, Estrategia, Simulación y Puzle). El objetivo es identificar patrones de diseño, polimorfismo en mecánicas y la arquitectura de los bucles de juego que generan experiencias lúdicas.
 
-**Autor:** Entrega del Taller 1.1
+
 
 ---
 
@@ -205,8 +213,6 @@ El análisis MDA muestra que la diversión es el resultado de decisiones de inge
 
 - Hunicke, LeBlanc & Zubek — MDA framework.
 - Citados: Devil May Cry 5, Breath of the Wild, Baldur's Gate 3, Civilization VI, Cities: Skylines, Portal 2.
-- Notas numeradas en el texto hacen referencia a fuentes y ejemplos de diseño (ejemplo: [1], [2], ...).
 
 ---
 
-**Fin del reporte técnico.**
