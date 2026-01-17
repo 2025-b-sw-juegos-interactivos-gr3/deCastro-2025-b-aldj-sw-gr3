@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Ambulance Game - Babylon.js</title>
+    <title>Crazy Ambulance</title>
     <style>
         html, body {
             overflow: hidden;
@@ -34,6 +34,18 @@
         .timer { font-size: 22px; color: #4CAF50; font-weight: bold; }
         .death-timer { font-size: 20px; color: #ff6666; font-weight: bold; }
         .cooldown { font-size: 16px; color: #FFC107; }
+        #speedometer {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            z-index: 100;
+        }
+        #speedometerCanvas {
+            width: 100%;
+            height: 100%;
+        }
         #minimap {
             position: absolute;
             bottom: 20px;
@@ -159,14 +171,16 @@
     <canvas id="renderCanvas"></canvas>
     
     <div id="hud">
-        <h3>🚑 AMBULANCE MISSION</h3>
+        <h3>🚑 CRAZY AMBULANCE</h3>
         <p>Puntos: <span id="score">0</span> | Pacientes: <span id="patientsDelivered">0</span></p>
         <p>Estado: <span id="gameStatus">Esperando paciente...</span></p>
         <p class="timer">⏱️ Misión: <span id="timer">0.00</span>s</p>
         <p class="death-timer" id="deathTimerText" style="display:none;">💀 Paciente muere en: <span id="deathTimer">0</span>s</p>
         <p class="cooldown" id="cooldownText" style="display:none;">Próximo paciente: <span id="cooldown">0</span>s</p>
-        <p>Paciente: <span id="patientCoords">-</span></p>
-        <p id="speedIndicator">🛣️ En Calle | Velocidad: 0%</p>
+    </div>
+
+    <div id="speedometer">
+        <canvas id="speedometerCanvas" width="120" height="120"></canvas>
     </div>
 
     <button id="pauseBtn">⏸️ Pausa</button>
@@ -253,8 +267,9 @@
         const roads = [];
         const buildings = [];
         
-        // Minimap (will be initialized in DOMContentLoaded)
+        // Minimap and Speedometer (will be initialized in DOMContentLoaded)
         let minimapCanvas, minimapCtx;
+        let speedometerCanvas, speedometerCtx;
 
         // ============== INITIALIZE ==============
         window.addEventListener('DOMContentLoaded', function() {
@@ -264,6 +279,10 @@
             // Initialize minimap
             minimapCanvas = document.getElementById("minimapCanvas");
             minimapCtx = minimapCanvas.getContext("2d");
+            
+            // Initialize speedometer
+            speedometerCanvas = document.getElementById("speedometerCanvas");
+            speedometerCtx = speedometerCanvas.getContext("2d");
             
             scene = new BABYLON.Scene(engine);
             scene.clearColor = new BABYLON.Color3(0.4, 0.6, 0.9);
@@ -466,8 +485,9 @@
                 spawnPatient();
             }
             
-            // Update minimap
+            // Update minimap and speedometer
             updateMinimap();
+            updateSpeedometer(onRoad);
         }
 
         // ============== WORLD CREATION ==============
@@ -963,7 +983,6 @@
             patientDeathTime = Date.now() + deathSeconds * 1000;
             
             document.getElementById("gameStatus").textContent = "🚨 ¡Paciente en emergencia!";
-            document.getElementById("patientCoords").textContent = `X: ${x.toFixed(0)}, Z: ${z.toFixed(0)} (${dist.toFixed(0)}m)`;
             document.getElementById("deathTimerText").style.display = "block";
         }
         
@@ -1017,13 +1036,6 @@
         }
         
         function updateHUD(onRoad) {
-            const speedPct = Math.abs(currentSpeed / CONFIG.MAX_SPEED * 100).toFixed(0);
-            const icon = onRoad ? "🛣️" : "🌿";
-            const text = onRoad ? "En Calle" : "En Césped";
-            const color = onRoad ? "#4CAF50" : "#FFC107";
-            document.getElementById("speedIndicator").innerHTML = 
-                `<span style="color:${color}">${icon} ${text}</span> | Velocidad: ${speedPct}%`;
-            
             if (patientInAmbulance && missionStartTime > 0) {
                 const elapsed = ((Date.now() - missionStartTime) / 1000).toFixed(1);
                 document.getElementById("timer").textContent = elapsed;
@@ -1152,6 +1164,71 @@
             ctx.fillStyle = "white";
             ctx.font = "bold 11px Arial";
             ctx.fillText("▲", radius - 5, 14);
+        }
+
+        // ============== SPEEDOMETER ==============
+        function updateSpeedometer(onRoad) {
+            const ctx = speedometerCtx;
+            const size = 120;
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const radius = 50;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+            ctx.fill();
+            
+            // Border - yellow if on grass, white if on road
+            ctx.strokeStyle = onRoad ? "white" : "#FFC107";
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            
+            // Speed arc (0 to 180 degrees, bottom half)
+            const speedPct = Math.abs(currentSpeed / CONFIG.MAX_SPEED);
+            const startAngle = Math.PI; // Start at bottom left
+            const endAngle = Math.PI + (Math.PI * speedPct); // Go clockwise
+            
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius - 8, startAngle, endAngle);
+            ctx.strokeStyle = speedPct > 0.8 ? "#ff4444" : "#4CAF50";
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            
+            // Tick marks
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.lineWidth = 2;
+            for (let i = 0; i <= 10; i++) {
+                const angle = Math.PI + (Math.PI * i / 10);
+                const x1 = centerX + Math.cos(angle) * (radius - 15);
+                const y1 = centerY + Math.sin(angle) * (radius - 15);
+                const x2 = centerX + Math.cos(angle) * (radius - 8);
+                const y2 = centerY + Math.sin(angle) * (radius - 8);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // Speed text
+            const speedValue = Math.abs(currentSpeed / CONFIG.MAX_SPEED * 100).toFixed(0);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 20px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(speedValue, centerX, centerY + 5);
+            
+            ctx.font = "10px Arial";
+            ctx.fillText("km/h", centerX, centerY + 20);
+            
+            // Surface indicator
+            ctx.font = "bold 10px Arial";
+            ctx.fillStyle = onRoad ? "#4CAF50" : "#FFC107";
+            ctx.fillText(onRoad ? "ROAD" : "GRASS", centerX, centerY - 15);
         }
     </script>
 </body>
